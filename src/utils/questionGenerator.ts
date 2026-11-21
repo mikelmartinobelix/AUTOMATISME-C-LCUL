@@ -1,4 +1,11 @@
-import { MathQuestion, MissingSlot, OperationType, PracticeSettings } from '../types/math';
+import { getSpeedTier } from '../data/progression';
+import {
+  MathQuestion,
+  MissingSlot,
+  OperationType,
+  PracticeSettings,
+  SpeedTierId,
+} from '../types/math';
 
 export const OPERATION_LABELS: Record<OperationType, string> = {
   sum: 'Sumes',
@@ -13,16 +20,19 @@ export const OPERATION_SYMBOLS: Record<OperationType, string> = {
 };
 
 function randomInt(min: number, max: number): number {
+  if (max <= min) return min;
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-function pickWeightedOperand(min: number, max: number): number {
-  if (max <= min) return min;
-  // Slightly reduce trivial `1` frequency when higher operands are available
-  if (min === 1 && max >= 4 && Math.random() < 0.88) {
-    return randomInt(2, max);
+function pickOperand(min: number, max: number, tierId: SpeedTierId): number {
+  const safeMin = Math.max(1, Math.min(10, min));
+  const safeMax = Math.max(safeMin, Math.min(11, max));
+
+  // In lower tiers, occasionally allow 1; in higher tiers favor 2..11
+  if (safeMin === 1 && safeMax >= 4 && tierId >= 2 && Math.random() < 0.9) {
+    return randomInt(2, safeMax);
   }
-  return randomInt(min, max);
+  return randomInt(safeMin, safeMax);
 }
 
 function buildVerbalPrompt(
@@ -52,7 +62,6 @@ function buildVerbalPrompt(
     return `A quin nombre li has de treure ${right} per obtenir ${result}?`;
   }
 
-  // Multiplication indirect
   if (missingSlot === 'second') {
     return `${left} per un nombre dona ${result}. Quin nombre falta?`;
   }
@@ -61,13 +70,23 @@ function buildVerbalPrompt(
 
 export function generateQuestion(
   settings: PracticeSettings,
+  tierId: SpeedTierId = 1,
   previousSignature?: string
 ): { question: MathQuestion; signature: string } {
-  const safeMax = Math.max(4, Math.min(11, Math.floor(settings.maxOperand))); // strictly < 12
+  const tier = getSpeedTier(tierId);
+
+  const minOp = settings.useDifficultyComplexity ? tier.minOperand : 1;
+  const maxOp = settings.useDifficultyComplexity
+    ? Math.min(11, tier.maxOperand)
+    : Math.max(4, Math.min(11, Math.floor(settings.maxOperand))); // strictly < 12
+  const maxMulProduct = settings.useDifficultyComplexity ? tier.maxMulProduct : 121;
+  const allowFirstSlot = settings.useDifficultyComplexity ? tier.allowFirstSlotIndirect : true;
+  const mixedIndirectRate = settings.useDifficultyComplexity ? tier.mixedIndirectRate : 0.5;
+
   const activeOps: OperationType[] =
     settings.operations.length > 0 ? settings.operations : ['sum', 'diff', 'mul'];
 
-  for (let attempt = 0; attempt < 12; attempt++) {
+  for (let attempt = 0; attempt < 20; attempt++) {
     const operation = activeOps[randomInt(0, activeOps.length - 1)];
 
     let leftOperand = 1;
@@ -75,26 +94,44 @@ export function generateQuestion(
     let result = 2;
 
     if (operation === 'sum') {
-      leftOperand = pickWeightedOperand(1, safeMax);
-      rightOperand = pickWeightedOperand(1, safeMax);
+      leftOperand = pickOperand(minOp, maxOp, tierId);
+      rightOperand = pickOperand(minOp, maxOp, tierId);
       result = leftOperand + rightOperand;
     } else if (operation === 'diff') {
       // Ensure leftOperand <= 11, rightOperand < leftOperand, result >= 1
-      leftOperand = randomInt(2, safeMax);
-      rightOperand = randomInt(1, leftOperand - 1);
+      const minLeft = Math.max(3, minOp + 1);
+      const effectiveMaxLeft = Math.min(11, Math.max(minLeft, maxOp));
+      leftOperand = randomInt(minLeft, effectiveMaxLeft);
+      const minRight = Math.min(leftOperand - 1, Math.max(1, Math.floor(minOp / 2)));
+      rightOperand = randomInt(minRight, leftOperand - 1);
       result = leftOperand - rightOperand;
     } else {
-      leftOperand = pickWeightedOperand(1, safeMax);
-      rightOperand = pickWeightedOperand(1, safeMax);
+      leftOperand = pickOperand(minOp, maxOp, tierId);
+      rightOperand = pickOperand(minOp, maxOp, tierId);
+      // Enforce tier's product complexity cap while ensuring factors stay < 12
+      if (leftOperand * rightOperand > maxMulProduct) {
+        const cappedRight = Math.max(1, Math.min(11, Math.floor(maxMulProduct / leftOperand)));
+        rightOperand = randomInt(Math.min(minOp, cappedRight), cappedRight);
+      }
       result = leftOperand * rightOperand;
     }
 
-    let missingSlot: MissingSlot = 'result';
+    // Determine whether question is indirect and which operand is hidden
+    let isIndirect = false;
     if (settings.questionMode === 'indirect') {
-      missingSlot = Math.random() < 0.5 ? 'second' : 'first';
+      isIndirect = true;
     } else if (settings.questionMode === 'mixed') {
-      if (Math.random() < 0.5) {
-        missingSlot = Math.random() < 0.5 ? 'second' : 'first';
+      isIndirect = Math.random() < mixedIndirectRate;
+    }
+
+    let missingSlot: MissingSlot = 'result';
+    if (isIndirect) {
+      if (!allowFirstSlot) {
+        missingSlot = 'second';
+      } else {
+        // Higher tiers introduce more first-slot unknowns (e.g. ? - 4 = 7, ? x 8 = 72)
+        const firstSlotProbability = tierId >= 4 ? 0.52 : 0.4;
+        missingSlot = Math.random() < firstSlotProbability ? 'first' : 'second';
       }
     }
 
@@ -105,8 +142,13 @@ export function generateQuestion(
           ? rightOperand
           : result;
 
+    // Guarantee every operand is strictly < 12
+    if (leftOperand >= 12 || rightOperand >= 12) {
+      continue;
+    }
+
     const signature = `${operation}:${leftOperand}:${rightOperand}:${missingSlot}`;
-    if (signature !== previousSignature || attempt === 11) {
+    if (signature !== previousSignature || attempt === 19) {
       return {
         signature,
         question: {
@@ -130,7 +172,6 @@ export function generateQuestion(
     }
   }
 
-  // Unreachable fallback
   return {
     signature: 'mul:2:3:second',
     question: {

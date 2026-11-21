@@ -96,7 +96,7 @@ export function ProgressionView({ profile }: ProgressionViewProps) {
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-semibold text-slate-600">
-                    Nivell {tier.id}
+                    Nivell {tier.id} · {tier.difficultyLabel}
                   </span>
                   {unlocked ? (
                     <CheckCircle2
@@ -114,7 +114,10 @@ export function ProgressionView({ profile }: ProgressionViewProps) {
                   </p>
                 </div>
 
-                <p className="text-xs text-slate-500 leading-relaxed">{tier.description}</p>
+                <div className="space-y-1.5">
+                  <p className="text-[11px] font-semibold text-slate-700">{tier.complexitySummary}</p>
+                  <p className="text-xs text-slate-500 leading-relaxed">{tier.description}</p>
+                </div>
 
                 <p className="text-[11px] font-mono tabular-nums text-slate-500 pt-2 border-t border-slate-100">
                   Objectiu pas: {Math.round(tier.promotionAccuracy * 100)}%

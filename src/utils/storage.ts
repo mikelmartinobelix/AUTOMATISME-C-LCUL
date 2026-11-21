@@ -60,6 +60,7 @@ export const DEFAULT_SETTINGS: PracticeSettings = {
   operations: ['sum', 'diff', 'mul'],
   questionMode: 'mixed',
   maxOperand: 11,
+  useDifficultyComplexity: true,
   questionsPerRound: 10,
   selectedTier: 1,
   adaptiveProgression: true,
@@ -83,6 +84,7 @@ export function loadStoredState(): StoredState {
             ...DEFAULT_SETTINGS,
             ...parsed.settings,
             maxOperand: safeMaxOperand,
+            useDifficultyComplexity: parsed.settings?.useDifficultyComplexity ?? true,
           },
         };
       }

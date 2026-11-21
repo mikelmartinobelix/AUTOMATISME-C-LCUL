@@ -3,7 +3,14 @@ import { PracticeArena } from './components/PracticeArena';
 import { ProfilesView } from './components/ProfilesView';
 import { ProgressionView } from './components/ProgressionView';
 import { RewardsView } from './components/RewardsView';
-import { AppTab, PracticeSettings, QuestionOutcome, SpeedTierId } from './types/math';
+import {
+  AppTab,
+  OperationType,
+  PracticeSettings,
+  QuestionMode,
+  QuestionOutcome,
+  SpeedTierId,
+} from './types/math';
 import {
   applyRoundResults,
   createStudentProfile,
@@ -11,8 +18,63 @@ import {
   saveStoredState,
 } from './utils/storage';
 
+function loadInitialStateWithQueryParams() {
+  const initial = loadStoredState();
+  if (typeof window === 'undefined') return initial;
+
+  const params = new URLSearchParams(window.location.search);
+  const opsParam = params.get('ops');
+  const modeParam = params.get('mode');
+  const tierParam = params.get('tier');
+  const qParam = params.get('q');
+
+  if (!opsParam && !modeParam && !tierParam && !qParam) {
+    return initial;
+  }
+
+  const nextSettings = { ...initial.settings };
+  if (opsParam) {
+    const validOps = opsParam
+      .split(',')
+      .filter((op): op is OperationType => op === 'sum' || op === 'diff' || op === 'mul');
+    if (validOps.length > 0) {
+      nextSettings.operations = Array.from(new Set(validOps));
+    }
+  }
+  if (modeParam === 'direct' || modeParam === 'indirect' || modeParam === 'mixed') {
+    nextSettings.questionMode = modeParam as QuestionMode;
+  }
+  if (qParam === '10' || qParam === '15' || qParam === '20') {
+    nextSettings.questionsPerRound = Number(qParam) as 10 | 15 | 20;
+  }
+
+  let nextProfiles = initial.profiles;
+  if (tierParam) {
+    const parsedTier = Number(tierParam);
+    if (parsedTier >= 1 && parsedTier <= 5) {
+      const targetTier = parsedTier as SpeedTierId;
+      nextSettings.selectedTier = targetTier;
+      nextProfiles = initial.profiles.map((p) =>
+        p.id === initial.activeProfileId
+          ? {
+              ...p,
+              highestUnlockedTier: Math.max(p.highestUnlockedTier, targetTier) as SpeedTierId,
+              currentTier: targetTier,
+            }
+          : p
+      );
+    }
+  }
+
+  return {
+    ...initial,
+    profiles: nextProfiles,
+    settings: nextSettings,
+  };
+}
+
 export default function App() {
-  const [store, setStore] = useState(() => loadStoredState());
+  const [store, setStore] = useState(() => loadInitialStateWithQueryParams());
   const [activeTab, setActiveTab] = useState<AppTab>('practice');
   const [startSignal, setStartSignal] = useState(0);
 

@@ -11,8 +11,15 @@ export type AppTab = 'practice' | 'progression' | 'rewards' | 'profiles';
 export interface SpeedTier {
   id: SpeedTierId;
   name: string;
+  difficultyLabel: string;
   secondsPerQuestion: number;
   description: string;
+  complexitySummary: string;
+  minOperand: number; // >= 1
+  maxOperand: number; // strictly < 12 (max 11)
+  maxMulProduct: number;
+  mixedIndirectRate: number;
+  allowFirstSlotIndirect: boolean;
   promotionAccuracy: number; // e.g., 0.8 (80%)
   minQuestionsForPromotion: number;
 }
@@ -33,6 +40,7 @@ export interface PracticeSettings {
   operations: OperationType[];
   questionMode: QuestionMode;
   maxOperand: number; // 4..11 (strictly < 12)
+  useDifficultyComplexity: boolean;
   questionsPerRound: 10 | 15 | 20;
   selectedTier: SpeedTierId;
   adaptiveProgression: boolean;

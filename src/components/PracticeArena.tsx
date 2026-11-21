@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowRight,
+  Check,
   CheckCircle2,
   Clock,
   Delete,
   Flame,
   HelpCircle,
+  Link2,
   Play,
   RotateCcw,
   Square,
@@ -94,10 +96,16 @@ export function PracticeArena({
     }
   };
 
+  const [copiedLink, setCopiedLink] = useState(false);
+
   const spawnNextQuestion = useCallback(
     (nextIndex: number) => {
       clearAdvanceTimer();
-      const { question, signature } = generateQuestion(settings, lastSignatureRef.current);
+      const { question, signature } = generateQuestion(
+        settings,
+        activeTierId,
+        lastSignatureRef.current
+      );
       lastSignatureRef.current = signature;
       setCurrentQuestion(question);
       setQuestionIndex(nextIndex);
@@ -106,7 +114,7 @@ export function PracticeArena({
       setRemainingMs(limitMs);
       questionStartRef.current = performance.now();
     },
-    [limitMs, settings]
+    [activeTierId, limitMs, settings]
   );
 
   const startRound = useCallback(() => {
@@ -396,7 +404,7 @@ export function PracticeArena({
                   <h2 className="text-xl font-semibold text-slate-900">{profile.name}</h2>
                   <p className="text-sm text-slate-500 flex flex-wrap items-center gap-2 mt-0.5">
                     <span className="font-mono tabular-nums font-medium text-slate-700">
-                      Nivell {activeTier.id} · {activeTier.name}
+                      Nivell {activeTier.id} · {activeTier.difficultyLabel} ({activeTier.name})
                     </span>
                     <span aria-hidden="true">·</span>
                     <span className="font-mono tabular-nums">
@@ -414,7 +422,10 @@ export function PracticeArena({
             {/* Central Practice Preview */}
             <div className="py-6 px-4 sm:px-8 bg-slate-50 border border-slate-200/80 rounded-xl text-center space-y-5">
               <p className="text-xs font-medium text-slate-500">
-                Exemple del mode seleccionat · Nombres menors que 12 (1–{settings.maxOperand})
+                Exemple del nivell {activeTier.id} ({activeTier.difficultyLabel}) ·{' '}
+                {settings.useDifficultyComplexity
+                  ? activeTier.complexitySummary
+                  : `Nombres menors que 12 (1–${settings.maxOperand})`}
               </p>
 
               <div className="flex items-center justify-center gap-3 sm:gap-5 font-mono tabular-nums text-3xl sm:text-5xl font-bold text-slate-900">
@@ -450,6 +461,12 @@ export function PracticeArena({
               </div>
 
               <p className="text-sm text-slate-600 max-w-md mx-auto">{previewExample.hint}</p>
+
+              {settings.questionMode !== 'direct' && (
+                <p className="text-xs text-slate-500 font-mono tabular-nums pt-2 border-t border-slate-200/70">
+                  Exemples indirects inclosos: 5 + ? = 8 · 10 − ? = 3 · 2 × ? = 6
+                </p>
+              )}
             </div>
 
             {/* Primary CTA + Quick Info */}
@@ -857,51 +874,83 @@ export function PracticeArena({
             ))}
           </div>
           <p className="text-xs text-slate-500">
-            Les preguntes indirectes amaguen un terme (p. ex.{' '}
-            <span className="font-mono text-slate-700">2 × ? = 6</span>) perquè l’alumne dedueixi el{' '}
-            <span className="font-mono text-slate-700">3</span>.
+            Inclou incògnites en sumes (<span className="font-mono text-slate-700">5 + ? = 8</span>),
+            restes (<span className="font-mono text-slate-700">10 − ? = 3</span>) i multiplicacions (
+            <span className="font-mono text-slate-700">2 × ? = 6</span>), sempre amb nombres &lt; 12.
           </p>
         </div>
 
-        {/* Max Operand Slider (Strictly < 12) */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between text-xs">
-            <label htmlFor="max-operand-range" className="font-semibold text-slate-700">
-              Nombre màxim dels termes
-            </label>
-            <span className="font-mono tabular-nums font-semibold text-sky-700">
-              Fins a {settings.maxOperand} (sempre &lt; 12)
+        {/* Complexity Scaling Mode (Level-based vs Custom Max Operand < 12) */}
+        <div className="space-y-2.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs font-semibold text-slate-700">
+              Complexitat dels nombres (&lt; 12)
             </span>
+            <button
+              type="button"
+              disabled={phase === 'playing'}
+              onClick={() =>
+                onUpdateSettings({
+                  ...settings,
+                  useDifficultyComplexity: !settings.useDifficultyComplexity,
+                })
+              }
+              className={`text-xs font-medium px-2.5 py-1 rounded-lg border transition-colors cursor-pointer disabled:opacity-60 ${
+                settings.useDifficultyComplexity
+                  ? 'bg-sky-50 border-sky-200 text-sky-800'
+                  : 'bg-white border-slate-200 text-slate-600'
+              }`}
+            >
+              {settings.useDifficultyComplexity ? 'Segons nivell' : 'Rang manual'}
+            </button>
           </div>
-          <input
-            id="max-operand-range"
-            type="range"
-            min={5}
-            max={11}
-            step={1}
-            disabled={phase === 'playing'}
-            value={settings.maxOperand}
-            onChange={(e) =>
-              onUpdateSettings({
-                ...settings,
-                maxOperand: Number(e.target.value),
-              })
-            }
-            className="w-full accent-sky-600 cursor-pointer disabled:opacity-60"
-          />
-          <div className="flex justify-between text-[11px] font-mono tabular-nums text-slate-400">
-            <span>5</span>
-            <span>7</span>
-            <span>9</span>
-            <span>11 (màx &lt; 12)</span>
-          </div>
+
+          {settings.useDifficultyComplexity ? (
+            <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200/70 rounded-xl px-3 py-2.5">
+              Nivell {activeTier.id} ({activeTier.difficultyLabel}):{' '}
+              <span className="font-medium text-slate-700">{activeTier.complexitySummary}</span>
+            </p>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <label htmlFor="max-operand-range" className="text-slate-600">
+                  Nombre màxim dels termes
+                </label>
+                <span className="font-mono tabular-nums font-semibold text-sky-700">
+                  Fins a {settings.maxOperand} (sempre &lt; 12)
+                </span>
+              </div>
+              <input
+                id="max-operand-range"
+                type="range"
+                min={5}
+                max={11}
+                step={1}
+                disabled={phase === 'playing'}
+                value={settings.maxOperand}
+                onChange={(e) =>
+                  onUpdateSettings({
+                    ...settings,
+                    maxOperand: Number(e.target.value),
+                  })
+                }
+                className="w-full accent-sky-600 cursor-pointer disabled:opacity-60"
+              />
+              <div className="flex justify-between text-[11px] font-mono tabular-nums text-slate-400">
+                <span>5</span>
+                <span>7</span>
+                <span>9</span>
+                <span>11 (màx &lt; 12)</span>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Time Progression Ladder */}
+        {/* Difficulty & Time Progression Ladder */}
         <div className="space-y-3 pt-2 border-t border-slate-100">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-700">
-              Progressió respecte el temps
+              Nivells de dificultat i temps
             </span>
             <button
               type="button"
@@ -918,7 +967,7 @@ export function PracticeArena({
                   : 'bg-white border-slate-200 text-slate-600'
               }`}
             >
-              {settings.adaptiveProgression ? 'Automàtica: Activa' : 'Selecció manual'}
+              {settings.adaptiveProgression ? 'Progressiu: Actiu' : 'Selecció manual'}
             </button>
           </div>
 
@@ -948,8 +997,9 @@ export function PracticeArena({
                 >
                   <div className="min-w-0">
                     <p className="text-xs font-semibold truncate">
-                      Nivell {tier.id} · {tier.name}
+                      Nivell {tier.id} · {tier.difficultyLabel} ({tier.name})
                     </p>
+                    <p className="text-[11px] opacity-75 truncate">{tier.complexitySummary}</p>
                   </div>
                   <span className="font-mono tabular-nums text-xs font-semibold shrink-0">
                     {unlocked ? `${tier.secondsPerQuestion.toFixed(1)} s` : 'Bloquejat'}
@@ -960,36 +1010,66 @@ export function PracticeArena({
           </div>
         </div>
 
-        {/* Round Length & Verbal Hint Toggle */}
-        <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs font-medium text-slate-600 mr-1">Ronda:</span>
-            {([10, 15, 20] as const).map((count) => (
-              <button
-                key={count}
-                type="button"
-                disabled={phase === 'playing'}
-                onClick={() => onUpdateSettings({ ...settings, questionsPerRound: count })}
-                className={`px-2.5 py-1 rounded-lg text-xs font-mono tabular-nums font-semibold border transition-colors cursor-pointer disabled:opacity-60 ${
-                  settings.questionsPerRound === count
-                    ? 'bg-slate-900 border-slate-900 text-white'
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                {count}
-              </button>
-            ))}
+        {/* Round Length, Verbal Hint & Shareable Student Link */}
+        <div className="pt-3 border-t border-slate-100 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-medium text-slate-600 mr-1">Ronda:</span>
+              {([10, 15, 20] as const).map((count) => (
+                <button
+                  key={count}
+                  type="button"
+                  disabled={phase === 'playing'}
+                  onClick={() => onUpdateSettings({ ...settings, questionsPerRound: count })}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-mono tabular-nums font-semibold border transition-colors cursor-pointer disabled:opacity-60 ${
+                    settings.questionsPerRound === count
+                      ? 'bg-slate-900 border-slate-900 text-white'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {count}
+                </button>
+              ))}
+            </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                onUpdateSettings({ ...settings, showVerbalHint: !settings.showVerbalHint })
+              }
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 cursor-pointer"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span>Guia verbal: {settings.showVerbalHint ? 'Sí' : 'No'}</span>
+            </button>
           </div>
 
           <button
             type="button"
-            onClick={() =>
-              onUpdateSettings({ ...settings, showVerbalHint: !settings.showVerbalHint })
-            }
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 hover:text-slate-900 cursor-pointer"
+            onClick={() => {
+              const url = new URL(window.location.href);
+              url.search = '';
+              url.searchParams.set('ops', settings.operations.join(','));
+              url.searchParams.set('mode', settings.questionMode);
+              url.searchParams.set('tier', String(activeTierId));
+              url.searchParams.set('q', String(settings.questionsPerRound));
+              navigator.clipboard?.writeText(url.toString()).catch(() => {});
+              setCopiedLink(true);
+              window.setTimeout(() => setCopiedLink(false), 2200);
+            }}
+            className="w-full py-2 px-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium inline-flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
-            <HelpCircle className="w-3.5 h-3.5" />
-            <span>Guia verbal: {settings.showVerbalHint ? 'Sí' : 'No'}</span>
+            {copiedLink ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Enllaç copiat per compartir amb l’alumnat</span>
+              </>
+            ) : (
+              <>
+                <Link2 className="w-3.5 h-3.5" />
+                <span>Copiar enllaç amb aquesta configuració</span>
+              </>
+            )}
           </button>
         </div>
       </aside>
