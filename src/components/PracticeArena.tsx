@@ -1047,15 +1047,19 @@ export function PracticeArena({
           <button
             type="button"
             onClick={() => {
-              const url = new URL(window.location.href);
-              url.search = '';
-              url.searchParams.set('ops', settings.operations.join(','));
-              url.searchParams.set('mode', settings.questionMode);
-              url.searchParams.set('tier', String(activeTierId));
-              url.searchParams.set('q', String(settings.questionsPerRound));
-              navigator.clipboard?.writeText(url.toString()).catch(() => {});
-              setCopiedLink(true);
-              window.setTimeout(() => setCopiedLink(false), 2200);
+              try {
+                const url = new URL(window.location.href);
+                url.search = '';
+                url.searchParams.set('ops', settings.operations.join(','));
+                url.searchParams.set('mode', settings.questionMode);
+                url.searchParams.set('tier', String(activeTierId));
+                url.searchParams.set('q', String(settings.questionsPerRound));
+                navigator.clipboard?.writeText(url.toString()).catch(() => {});
+                setCopiedLink(true);
+                window.setTimeout(() => setCopiedLink(false), 2200);
+              } catch {
+                // Ignore clipboard errors in restricted contexts
+              }
             }}
             className="w-full py-2 px-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-medium inline-flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >

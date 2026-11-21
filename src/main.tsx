@@ -5,13 +5,14 @@ import './index.css';
 
 interface ErrorBoundaryState {
   hasError: boolean;
+  errorMessage: string;
 }
 
 class AppErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
-  state: ErrorBoundaryState = { hasError: false };
+  state: ErrorBoundaryState = { hasError: false, errorMessage: '' };
 
-  static getDerivedStateFromError(): ErrorBoundaryState {
-    return { hasError: true };
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, errorMessage: error?.message || String(error) };
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
@@ -27,6 +28,11 @@ class AppErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryS
             <p className="text-sm text-slate-600">
               Pots recarregar la pàgina o restablir les dades guardades al navegador si el problema continua.
             </p>
+            {this.state.errorMessage && (
+              <p className="text-xs font-mono text-rose-700 bg-rose-50 border border-rose-200 rounded-lg p-2.5 text-left break-words">
+                {this.state.errorMessage}
+              </p>
+            )}
             <div className="flex justify-center gap-3 pt-2">
               <button
                 type="button"
