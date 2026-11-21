@@ -1,0 +1,6 @@
+{
+  "name": "CalculaRàpid",
+  "description": "Aplicació educativa per practicar automatismes de sumes, diferències i multiplicacions amb nombres menors que 12, preguntes indirectes, progressió de temps i sistema de recompenses.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
