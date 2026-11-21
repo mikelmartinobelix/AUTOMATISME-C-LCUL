@@ -67,22 +67,63 @@ export const DEFAULT_SETTINGS: PracticeSettings = {
   showVerbalHint: true,
 };
 
+function normalizeProfile(raw: Partial<StudentProfile>): StudentProfile {
+  const base = createStudentProfile(raw.name || 'Alumne');
+  const clampTier = (t: unknown): SpeedTierId => {
+    const n = Number(t);
+    return n >= 1 && n <= 5 ? (n as SpeedTierId) : 1;
+  };
+
+  return {
+    ...base,
+    ...raw,
+    id: typeof raw.id === 'string' && raw.id ? raw.id : base.id,
+    name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : base.name,
+    highestUnlockedTier: clampTier(raw.highestUnlockedTier),
+    currentTier: clampTier(raw.currentTier),
+    unlockedBadges: Array.isArray(raw.unlockedBadges) ? raw.unlockedBadges : [],
+    unlockedEmblems:
+      Array.isArray(raw.unlockedEmblems) && raw.unlockedEmblems.length > 0
+        ? raw.unlockedEmblems
+        : ['compass'],
+    equippedEmblemId: typeof raw.equippedEmblemId === 'string' ? raw.equippedEmblemId : 'compass',
+    operationStats: {
+      sum: raw.operationStats?.sum ?? { attempts: 0, correct: 0, totalTimeMs: 0 },
+      diff: raw.operationStats?.diff ?? { attempts: 0, correct: 0, totalTimeMs: 0 },
+      mul: raw.operationStats?.mul ?? { attempts: 0, correct: 0, totalTimeMs: 0 },
+    },
+    numberMastery: {
+      ...base.numberMastery,
+      ...(raw.numberMastery ?? {}),
+    },
+    roundHistory: Array.isArray(raw.roundHistory) ? raw.roundHistory : [],
+  };
+}
+
 export function loadStoredState(): StoredState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<StoredState>;
       if (Array.isArray(parsed.profiles) && parsed.profiles.length > 0) {
-        const activeId = parsed.activeProfileId || parsed.profiles[0].id;
+        const normalizedProfiles = parsed.profiles.map((p) => normalizeProfile(p));
+        const activeId = parsed.activeProfileId || normalizedProfiles[0].id;
         const safeMaxOperand = Math.max(4, Math.min(11, parsed.settings?.maxOperand ?? 11));
+        const validOps = Array.isArray(parsed.settings?.operations)
+          ? parsed.settings.operations.filter(
+              (op): op is OperationType => op === 'sum' || op === 'diff' || op === 'mul'
+            )
+          : DEFAULT_SETTINGS.operations;
+
         return {
-          activeProfileId: parsed.profiles.some((p) => p.id === activeId)
+          activeProfileId: normalizedProfiles.some((p) => p.id === activeId)
             ? activeId
-            : parsed.profiles[0].id,
-          profiles: parsed.profiles,
+            : normalizedProfiles[0].id,
+          profiles: normalizedProfiles,
           settings: {
             ...DEFAULT_SETTINGS,
             ...parsed.settings,
+            operations: validOps.length > 0 ? validOps : DEFAULT_SETTINGS.operations,
             maxOperand: safeMaxOperand,
             useDifficultyComplexity: parsed.settings?.useDifficultyComplexity ?? true,
           },
