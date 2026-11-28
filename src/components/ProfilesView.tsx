@@ -1,16 +1,19 @@
 import { FormEvent, useState } from 'react';
 import { Check, Plus, Trash2, UserCheck } from 'lucide-react';
 import { getSpeedTier } from '../data/progression';
-import { StudentProfile } from '../types/math';
+import { ClassGroup, EsoCourse, StudentProfile } from '../types/math';
 import { EmblemAvatar } from './EmblemAvatar';
 
 interface ProfilesViewProps {
   profiles: StudentProfile[];
   activeProfileId: string;
   onSelectProfile: (id: string) => void;
-  onCreateProfile: (name: string) => void;
+  onCreateProfile: (name: string, course: EsoCourse, group: ClassGroup) => void;
   onDeleteProfile: (id: string) => void;
 }
+
+const COURSES: EsoCourse[] = ["1r d'ESO", "2n d'ESO", "3r d'ESO", "4t d'ESO"];
+const GROUPS: ClassGroup[] = ['A', 'B', 'C'];
 
 export function ProfilesView({
   profiles,
@@ -20,12 +23,14 @@ export function ProfilesView({
   onDeleteProfile,
 }: ProfilesViewProps) {
   const [newName, setNewName] = useState('');
+  const [newCourse, setNewCourse] = useState<EsoCourse>("1r d'ESO");
+  const [newGroup, setNewGroup] = useState<ClassGroup>('A');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) return;
-    onCreateProfile(newName.trim());
+    onCreateProfile(newName.trim(), newCourse, newGroup);
     setNewName('');
   };
 
@@ -58,8 +63,8 @@ export function ProfilesView({
                   <div className="min-w-0">
                     <p className="font-semibold text-slate-900 text-sm truncate">{p.name}</p>
                     <p className="text-xs text-slate-500 font-mono tabular-nums mt-0.5">
-                      Nivell {tier.id} ({tier.secondsPerQuestion.toFixed(1)} s) · {p.starsBalance} estrelles ·{' '}
-                      {p.totalCorrect} encerts
+                      {p.course} · Classe {p.group} · Nivell {tier.id} ({tier.secondsPerQuestion.toFixed(1)} s) ·{' '}
+                      {p.starsBalance} estrelles · {p.totalCorrect} encerts
                     </p>
                   </div>
                 </div>
@@ -129,20 +134,60 @@ export function ProfilesView({
           Crea un perfil individual per fer seguiment propi de la progressió temporal i desbloquejar recompenses.
         </p>
 
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="student-name" className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Nom de l’alumne
+              Nom i Cognoms
             </label>
             <input
               id="student-name"
               type="text"
-              maxLength={32}
+              maxLength={60}
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder="Ex: Marta Soler"
+              placeholder="Ex: Marta Soler Puig"
               className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:border-sky-500"
             />
+          </div>
+
+          <div>
+            <span className="block text-xs font-semibold text-slate-700 mb-1.5">Curs</span>
+            <div className="grid grid-cols-2 gap-2">
+              {COURSES.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setNewCourse(item)}
+                  className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
+                    newCourse === item
+                      ? 'bg-sky-50 border-sky-400 text-sky-900'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <span className="block text-xs font-semibold text-slate-700 mb-1.5">Classe</span>
+            <div className="grid grid-cols-3 gap-2">
+              {GROUPS.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => setNewGroup(item)}
+                  className={`py-2 px-3 rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
+                    newGroup === item
+                      ? 'bg-sky-50 border-sky-400 text-sky-900'
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  Classe {item}
+                </button>
+              ))}
+            </div>
           </div>
 
           <button

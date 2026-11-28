@@ -85,9 +85,15 @@ export interface NumberMastery {
   totalTimeMs: number;
 }
 
+export type EsoCourse = "1r d'ESO" | "2n d'ESO" | "3r d'ESO" | "4t d'ESO";
+
+export type ClassGroup = 'A' | 'B' | 'C';
+
 export interface StudentProfile {
   id: string;
   name: string;
+  course: EsoCourse;
+  group: ClassGroup;
   createdAt: number;
   starsBalance: number;
   totalStarsEarned: number;

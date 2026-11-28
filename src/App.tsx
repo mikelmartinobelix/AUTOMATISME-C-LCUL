@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { LogOut } from 'lucide-react';
+import { AccessGate } from './components/AccessGate';
 import { PracticeArena } from './components/PracticeArena';
 import { ProfilesView } from './components/ProfilesView';
 import { ProgressionView } from './components/ProgressionView';
 import { RewardsView } from './components/RewardsView';
 import {
   AppTab,
+  ClassGroup,
+  EsoCourse,
   OperationType,
   PracticeSettings,
   QuestionMode,
@@ -75,6 +79,7 @@ function loadInitialStateWithQueryParams() {
 
 export default function App() {
   const [store, setStore] = useState(() => loadInitialStateWithQueryParams());
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState<AppTab>('practice');
   const [startSignal, setStartSignal] = useState(0);
 
@@ -113,6 +118,7 @@ export default function App() {
       }));
 
       return {
+        updatedProfile: result.updatedProfile,
         roundRecord: result.roundRecord,
         newlyUnlockedBadges: result.newlyUnlockedBadges,
         promotedToTier: result.promotedToTier,
@@ -152,14 +158,50 @@ export default function App() {
     setStore((prev) => ({ ...prev, activeProfileId: id }));
   }, []);
 
-  const handleCreateProfile = useCallback((name: string) => {
-    const profile = createStudentProfile(name);
-    setStore((prev) => ({
-      ...prev,
-      activeProfileId: profile.id,
-      profiles: [...prev.profiles, profile],
-    }));
-  }, []);
+  const handleAuthenticate = useCallback(
+    (name: string, course: EsoCourse, group: ClassGroup) => {
+      const normalizedName = name.trim().toLowerCase();
+      setStore((prev) => {
+        const existing = prev.profiles.find(
+          (p) =>
+            p.name.trim().toLowerCase() === normalizedName &&
+            p.course === course &&
+            p.group === group
+        );
+        if (existing) {
+          return {
+            ...prev,
+            activeProfileId: existing.id,
+          };
+        }
+
+        const created = createStudentProfile(name, course, group);
+        const cleanedProfiles = prev.profiles.filter(
+          (p) => !(p.name.trim().toLowerCase() === 'classe 1' && p.totalQuestionsAnswered === 0)
+        );
+        return {
+          ...prev,
+          activeProfileId: created.id,
+          profiles: [...cleanedProfiles, created],
+        };
+      });
+      setActiveTab('practice');
+      setIsAuthenticated(true);
+    },
+    []
+  );
+
+  const handleCreateProfile = useCallback(
+    (name: string, course: EsoCourse, group: ClassGroup) => {
+      const profile = createStudentProfile(name, course, group);
+      setStore((prev) => ({
+        ...prev,
+        activeProfileId: profile.id,
+        profiles: [...prev.profiles, profile],
+      }));
+    },
+    []
+  );
 
   const handleDeleteProfile = useCallback((id: string) => {
     setStore((prev) => {
@@ -186,6 +228,12 @@ export default function App() {
     { id: 'rewards', label: 'Recompenses' },
     { id: 'profiles', label: 'Perfils' },
   ];
+
+  if (!isAuthenticated) {
+    return (
+      <AccessGate existingProfiles={store.profiles} onAuthenticate={handleAuthenticate} />
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900">
@@ -246,9 +294,20 @@ export default function App() {
               {activeTab === 'profiles' && 'Gestió de perfils'}
             </h1>
           </div>
-          <p className="text-xs text-slate-500 font-mono tabular-nums">
-            {activeProfile.name} · {activeProfile.starsBalance} estrelles
-          </p>
+          <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-mono tabular-nums">
+            <span>
+              {activeProfile.name} · {activeProfile.course} {activeProfile.group} ·{' '}
+              {activeProfile.starsBalance} estrelles
+            </span>
+            <button
+              type="button"
+              onClick={() => setIsAuthenticated(false)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 font-sans font-medium transition-colors cursor-pointer"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span>Sortir</span>
+            </button>
+          </div>
         </div>
 
         {activeTab === 'practice' && (

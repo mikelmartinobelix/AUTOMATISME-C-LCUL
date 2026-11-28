@@ -24,3 +24,8 @@ El projecte ja està configurat amb rutes relatives (`base: './'` a `vite.config
 
 Pots usar el botó **Copiar enllaç amb aquesta configuració** dins l'aplicació o afegir paràmetres a l'URL:
 - `?ops=sum,diff,mul&mode=indirect&tier=1&q=10`
+
+## Registre de resultats a Google Sheets
+
+L'aplicació envia automàticament cada ronda completada a l'endpoint configurat de Google Apps Script (`google-apps-script/Code.gs`), creant i omplint un full separat per a cada curs (`1r d'ESO`, `2n d'ESO`, `3r d'ESO` i `4t d'ESO`). Pots canviar l'enllaç `/exec` definint `VITE_SHEETS_EXEC_URL` abans de compilar.
+

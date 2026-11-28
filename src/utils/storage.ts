@@ -1,5 +1,7 @@
 import { BADGE_DEFINITIONS, getSpeedTier } from '../data/progression';
 import {
+  ClassGroup,
+  EsoCourse,
   NumberMastery,
   OperationType,
   PracticeSettings,
@@ -25,11 +27,20 @@ function createInitialNumberMastery(): Record<number, NumberMastery> {
   return mastery;
 }
 
-export function createStudentProfile(name: string): StudentProfile {
-  const trimmed = name.trim().slice(0, 32) || 'Alumne';
+const VALID_COURSES: EsoCourse[] = ["1r d'ESO", "2n d'ESO", "3r d'ESO", "4t d'ESO"];
+const VALID_GROUPS: ClassGroup[] = ['A', 'B', 'C'];
+
+export function createStudentProfile(
+  name: string,
+  course: EsoCourse = "1r d'ESO",
+  group: ClassGroup = 'A'
+): StudentProfile {
+  const trimmed = name.trim().slice(0, 60) || 'Alumne';
   return {
     id: `student_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     name: trimmed,
+    course: VALID_COURSES.includes(course) ? course : "1r d'ESO",
+    group: VALID_GROUPS.includes(group) ? group : 'A',
     createdAt: Date.now(),
     starsBalance: 0,
     totalStarsEarned: 0,
@@ -74,11 +85,20 @@ function normalizeProfile(raw: Partial<StudentProfile>): StudentProfile {
     return n >= 1 && n <= 5 ? (n as SpeedTierId) : 1;
   };
 
+  const course: EsoCourse = VALID_COURSES.includes(raw.course as EsoCourse)
+    ? (raw.course as EsoCourse)
+    : "1r d'ESO";
+  const group: ClassGroup = VALID_GROUPS.includes(raw.group as ClassGroup)
+    ? (raw.group as ClassGroup)
+    : 'A';
+
   return {
     ...base,
     ...raw,
     id: typeof raw.id === 'string' && raw.id ? raw.id : base.id,
-    name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim() : base.name,
+    name: typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim().slice(0, 60) : base.name,
+    course,
+    group,
     highestUnlockedTier: clampTier(raw.highestUnlockedTier),
     currentTier: clampTier(raw.currentTier),
     unlockedBadges: Array.isArray(raw.unlockedBadges) ? raw.unlockedBadges : [],

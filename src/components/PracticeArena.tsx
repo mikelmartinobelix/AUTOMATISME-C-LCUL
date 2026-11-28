@@ -32,6 +32,7 @@ import {
   generateQuestion,
 } from '../utils/questionGenerator';
 import { calculateQuestionStars } from '../utils/storage';
+import { SheetsSyncResult, submitRoundToSheets } from '../utils/sheetsSync';
 import { EmblemAvatar } from './EmblemAvatar';
 
 interface PracticeArenaProps {
@@ -42,6 +43,7 @@ interface PracticeArenaProps {
     outcomes: QuestionOutcome[],
     tierUsed: SpeedTierId
   ) => {
+    updatedProfile: StudentProfile;
     roundRecord: RoundRecord;
     newlyUnlockedBadges: string[];
     promotedToTier: SpeedTierId | null;
@@ -50,9 +52,11 @@ interface PracticeArenaProps {
 }
 
 type ArenaPhase = 'idle' | 'playing' | 'summary';
+type SheetSyncState = 'idle' | 'syncing' | 'saved' | 'error';
 
 interface RoundSummaryState {
   outcomes: QuestionOutcome[];
+  updatedProfile: StudentProfile;
   roundRecord: RoundRecord;
   newlyUnlockedBadges: string[];
   promotedToTier: SpeedTierId | null;
@@ -74,6 +78,8 @@ export function PracticeArena({
   const [outcomes, setOutcomes] = useState<QuestionOutcome[]>([]);
   const [feedback, setFeedback] = useState<QuestionOutcome | null>(null);
   const [summary, setSummary] = useState<RoundSummaryState | null>(null);
+  const [sheetSyncState, setSheetSyncState] = useState<SheetSyncState>('idle');
+  const [sheetSyncMessage, setSheetSyncMessage] = useState('');
 
   const activeTierId: SpeedTierId = settings.adaptiveProgression
     ? profile.currentTier
@@ -126,6 +132,8 @@ export function PracticeArena({
     setStreak(0);
     setRoundStars(0);
     setSummary(null);
+    setSheetSyncState('idle');
+    setSheetSyncMessage('');
     setPhase('playing');
     spawnNextQuestion(0);
   }, [spawnNextQuestion]);
@@ -139,22 +147,40 @@ export function PracticeArena({
     }
   }, [externalStartSignal, startRound]);
 
+  const syncRoundRecord = useCallback(
+    async (targetProfile: StudentProfile, record: RoundRecord) => {
+      setSheetSyncState('syncing');
+      setSheetSyncMessage('');
+      const res: SheetsSyncResult = await submitRoundToSheets(targetProfile, record);
+      if (res.ok) {
+        setSheetSyncState('saved');
+        setSheetSyncMessage(`Resultat desat al full de ${res.sheet || targetProfile.course}.`);
+      } else {
+        setSheetSyncState('error');
+        setSheetSyncMessage(res.error || 'No s’ha pogut desar al full de càlcul.');
+      }
+    },
+    []
+  );
+
   const finishOrAdvance = useCallback(
     (recordedOutcomes: QuestionOutcome[], currentIdx: number) => {
       if (currentIdx + 1 >= settings.questionsPerRound) {
         const result = onCompleteRound(recordedOutcomes, activeTierId);
         setSummary({
           outcomes: recordedOutcomes,
+          updatedProfile: result.updatedProfile,
           roundRecord: result.roundRecord,
           newlyUnlockedBadges: result.newlyUnlockedBadges,
           promotedToTier: result.promotedToTier,
         });
         setPhase('summary');
+        void syncRoundRecord(result.updatedProfile, result.roundRecord);
       } else {
         spawnNextQuestion(currentIdx + 1);
       }
     },
-    [activeTierId, onCompleteRound, settings.questionsPerRound, spawnNextQuestion]
+    [activeTierId, onCompleteRound, settings.questionsPerRound, spawnNextQuestion, syncRoundRecord]
   );
 
   const resolveAnswer = useCallback(
@@ -401,7 +427,12 @@ export function PracticeArena({
               <div className="flex items-center gap-4">
                 <EmblemAvatar emblemId={profile.equippedEmblemId} size="md" />
                 <div>
-                  <h2 className="text-xl font-semibold text-slate-900">{profile.name}</h2>
+                  <h2 className="text-xl font-semibold text-slate-900">
+                    {profile.name}{' '}
+                    <span className="text-sm font-normal text-slate-500">
+                      · {profile.course} · Classe {profile.group}
+                    </span>
+                  </h2>
                   <p className="text-sm text-slate-500 flex flex-wrap items-center gap-2 mt-0.5">
                     <span className="font-mono tabular-nums font-medium text-slate-700">
                       Nivell {activeTier.id} · {activeTier.difficultyLabel} ({activeTier.name})
@@ -756,6 +787,38 @@ export function PracticeArena({
                     );
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* Google Sheets Course Sync Feedback */}
+            {sheetSyncState !== 'idle' && (
+              <div
+                className={`px-3.5 py-2.5 rounded-xl border text-xs flex flex-wrap items-center justify-between gap-2 ${
+                  sheetSyncState === 'saved'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                    : sheetSyncState === 'error'
+                      ? 'bg-rose-50 border-rose-200 text-rose-900'
+                      : 'bg-slate-50 border-slate-200 text-slate-600'
+                }`}
+              >
+                <span className="inline-flex items-center gap-2 font-medium">
+                  {sheetSyncState === 'saved' && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                  {sheetSyncState === 'error' && <XCircle className="w-4 h-4 text-rose-600 shrink-0" />}
+                  <span>
+                    {sheetSyncState === 'syncing'
+                      ? `Registrant resultats al full de ${summary.updatedProfile.course}...`
+                      : sheetSyncMessage}
+                  </span>
+                </span>
+                {sheetSyncState === 'error' && (
+                  <button
+                    type="button"
+                    onClick={() => syncRoundRecord(summary.updatedProfile, summary.roundRecord)}
+                    className="px-2.5 py-1 rounded-lg bg-white border border-rose-200 text-rose-800 font-semibold hover:bg-rose-100/50 transition-colors cursor-pointer"
+                  >
+                    Reintentar
+                  </button>
+                )}
               </div>
             )}
 
